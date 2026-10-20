@@ -165,6 +165,7 @@ struct EntryList: NSViewRepresentable {
 			case let group as Group:
 				let cell = outlineView.makeView(withIdentifier: GroupCell.identifier, owner: nil) as? GroupCell ?? GroupCell()
 				cell.configure(group.section, isCollapsed: model?.isCollapsed(group.section) ?? false)
+				cell.wantsLayer = true
 				return cell
 			case let row as Row:
 				let cell = outlineView.makeView(withIdentifier: EntryCell.identifier, owner: nil) as? EntryCell ?? EntryCell()
@@ -180,12 +181,14 @@ struct EntryList: NSViewRepresentable {
 /** Icon, title and a secondary line. */
 private final class EntryCell: NSTableCellView {
 	static let identifier = NSUserInterfaceItemIdentifier("EntryCell")
+	private let visualEffectView = NSVisualEffectView()
 	private let icon = NSImageView()
 	private let title = NSTextField(labelWithString: "")
 	private let subtitle = NSTextField(labelWithString: "")
 
 	init() {
 		super.init(frame: .zero)
+		setupVisualEffect()
 		identifier = Self.identifier
 		title.lineBreakMode = .byTruncatingTail
 		subtitle.lineBreakMode = .byTruncatingMiddle
@@ -230,6 +233,19 @@ private final class EntryCell: NSTableCellView {
 			icon.contentTintColor = nil
 		}
 	}
+	private func setupVisualEffect() {
+		visualEffectView.material = .headerView
+		visualEffectView.blendingMode = .withinWindow
+		visualEffectView.state = .followsWindowActiveState
+		visualEffectView.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(visualEffectView, positioned: .below, relativeTo: nil)
+		NSLayoutConstraint.activate([
+			visualEffectView.leadingAnchor.constraint(equalTo: leadingAnchor),
+			visualEffectView.trailingAnchor.constraint(equalTo: trailingAnchor),
+			visualEffectView.topAnchor.constraint(equalTo: topAnchor),
+			visualEffectView.bottomAnchor.constraint(equalTo: bottomAnchor)
+		])
+	}
 }
 
 /** Group header: disclosure chevron, optional app icon, title and row count. */
@@ -270,6 +286,11 @@ private final class GroupCell: NSTableCellView {
 
 	required init?(coder: NSCoder) { fatalError() }
 
+	override var wantsUpdateLayer: Bool { true }
+	override func updateLayer() {
+		super.updateLayer()
+		layer?.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.85).cgColor
+	}
 	@MainActor
 	func configure(_ section: EntrySection, isCollapsed: Bool) {
 		chevron.image = NSImage(systemSymbolName: isCollapsed ? "chevron.right" : "chevron.down", accessibilityDescription: nil)
