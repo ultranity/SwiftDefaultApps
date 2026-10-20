@@ -128,8 +128,9 @@ private struct HandlerPicker: View {
 				Text("None").tag("")
 			}
 			ForEach(state.candidates) { app in
-				Label { Text(app.name) } icon: { Image(nsImage: Icons.app(app.path, size: 16)) }
+				Label { Text(app.name) } icon: { Image(nsImage: Icons.app(app.path)) }
 					.tag(app.id)
+					.labelStyle(.titleAndIcon)
 			}
 			Divider()
 			Text("Do Nothing").tag(AppRef.doNothingID)
@@ -345,7 +346,7 @@ private struct DetailHeader: View {
 
 	var body: some View {
 		HStack(spacing: 12) {
-			EntryIcon(entry: entry, size: 48)
+			EntryIcon(entry: entry)
 			VStack(alignment: .leading, spacing: 2) {
 				Text(entry.kind == .scheme ? "\(entry.id):" : entry.title)
 					.font(.title2.weight(.semibold))
@@ -363,7 +364,12 @@ private struct DetailHeader: View {
 @MainActor
 struct EntryIcon: View {
 	let entry: Entry
-	let size: CGFloat
+	var size: CGFloat {
+		switch entry.kind {
+		case .scheme, .type: 48
+		case .app: 64
+		}
+	}
 
 	var body: some View {
 		switch entry.kind {
@@ -374,9 +380,15 @@ struct EntryIcon: View {
 				.frame(width: size * 0.85, height: size * 0.85)
 				.frame(width: size, height: size)
 		case .type:
-			Image(nsImage: Icons.type(entry.id, size: size))
+			Image(nsImage: Icons.type(entry.id))
+				.resizable()
+				.aspectRatio(contentMode: .fit)
+				.frame(maxHeight: size)
 		case .app(let declarations):
-			Image(nsImage: Icons.app(declarations.path, size: size))
+			Image(nsImage: Icons.app(declarations.path))
+				.resizable()
+				.aspectRatio(contentMode: .fit)
+				.frame(maxHeight: size)
 		}
 	}
 }
@@ -386,22 +398,21 @@ struct EntryIcon: View {
 enum Icons {
 	private static let cache = NSCache<NSString, NSImage>()
 
-	static func app(_ path: String?, size: CGFloat) -> NSImage {
-		cached("app:\(path ?? "")@\(size)", size: size) {
+	static func app(_ path: String?) -> NSImage {
+		cached("app:\(path ?? "")") {
 			path.map { NSWorkspace.shared.icon(forFile: $0) } ?? NSWorkspace.shared.icon(for: .application)
 		}
 	}
 
-	static func type(_ identifier: String, size: CGFloat) -> NSImage {
-		cached("uti:\(identifier)@\(size)", size: size) {
+	static func type(_ identifier: String) -> NSImage {
+		cached("uti:\(identifier)") {
 			NSWorkspace.shared.icon(for: UTType(identifier) ?? .data)
 		}
 	}
 
-	private static func cached(_ key: String, size: CGFloat, make: () -> NSImage) -> NSImage {
+	private static func cached(_ key: String, make: () -> NSImage) -> NSImage {
 		if let image = cache.object(forKey: key as NSString) { return image }
-		let image = make().copy() as! NSImage
-		image.size = NSSize(width: size, height: size)
+		let image = make()
 		cache.setObject(image, forKey: key as NSString)
 		return image
 	}

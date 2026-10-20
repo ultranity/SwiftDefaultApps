@@ -223,10 +223,10 @@ private final class EntryCell: NSTableCellView {
 			icon.image = NSImage(systemSymbolName: "link.circle.fill", accessibilityDescription: nil)
 			icon.contentTintColor = .systemBlue
 		case .type:
-			icon.image = Icons.type(entry.id, size: 20)
+			icon.image = Icons.type(entry.id)
 			icon.contentTintColor = nil
 		case .app(let declarations):
-			icon.image = Icons.app(declarations.path, size: 20)
+			icon.image = Icons.app(declarations.path)
 			icon.contentTintColor = nil
 		}
 	}
@@ -273,7 +273,7 @@ private final class GroupCell: NSTableCellView {
 	@MainActor
 	func configure(_ section: EntrySection, isCollapsed: Bool) {
 		chevron.image = NSImage(systemSymbolName: isCollapsed ? "chevron.right" : "chevron.down", accessibilityDescription: nil)
-		icon.image = section.app.map { Icons.app($0.path, size: 14) }
+		icon.image = section.app.map { Icons.app($0.path) }
 		icon.isHidden = section.app == nil
 		title.stringValue = section.title ?? ""
 		count.stringValue = "\(section.entries.count)"
