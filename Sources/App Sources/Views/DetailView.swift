@@ -128,7 +128,7 @@ private struct HandlerPicker: View {
 				Text("None").tag("")
 			}
 			ForEach(state.candidates) { app in
-				Label { Text(app.name) } icon: { Image(nsImage: Icons.app(app.path)) }
+				Label { Text(app.name) } icon: { Image(nsImage: Icons.menuApp(app.path)) }
 					.tag(app.id)
 					.labelStyle(.titleAndIcon)
 			}
@@ -393,7 +393,7 @@ struct EntryIcon: View {
 	}
 }
 
-/** Icon lookups are not free and the lists are long, so results are cached per path/UTI and size. */
+/** Icon lookups are not free and the lists are long, so results are cached per path/UTI. */
 @MainActor
 enum Icons {
 	private static let cache = NSCache<NSString, NSImage>()
@@ -401,6 +401,20 @@ enum Icons {
 	static func app(_ path: String?) -> NSImage {
 		cached("app:\(path ?? "")") {
 			path.map { NSWorkspace.shared.icon(forFile: $0) } ?? NSWorkspace.shared.icon(for: .application)
+		}
+	}
+
+	/**
+	Menus draw an image at its point size, and `icon(forFile:)` is 32pt. Wrapping it in a drawing handler
+	gives a 16pt image that redraws the original for each backing scale, so it stays sharp on Retina.
+	*/
+	static func menuApp(_ path: String?) -> NSImage {
+		cached("menu:\(path ?? "")") {
+			let icon = app(path)
+			return NSImage(size: NSSize(width: 16, height: 16), flipped: false) { rect in
+				icon.draw(in: rect)
+				return true
+			}
 		}
 	}
 

@@ -160,12 +160,15 @@ struct EntryList: NSViewRepresentable {
 			model?.selection = row.entry.id
 		}
 
+		func outlineView(_ outlineView: NSOutlineView, rowViewForItem item: Any) -> NSTableRowView? {
+			item is Group ? GroupRowView() : nil
+		}
+
 		func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
 			switch item {
 			case let group as Group:
 				let cell = outlineView.makeView(withIdentifier: GroupCell.identifier, owner: nil) as? GroupCell ?? GroupCell()
 				cell.configure(group.section, isCollapsed: model?.isCollapsed(group.section) ?? false)
-				cell.wantsLayer = true
 				return cell
 			case let row as Row:
 				let cell = outlineView.makeView(withIdentifier: EntryCell.identifier, owner: nil) as? EntryCell ?? EntryCell()
@@ -181,14 +184,12 @@ struct EntryList: NSViewRepresentable {
 /** Icon, title and a secondary line. */
 private final class EntryCell: NSTableCellView {
 	static let identifier = NSUserInterfaceItemIdentifier("EntryCell")
-	private let visualEffectView = NSVisualEffectView()
 	private let icon = NSImageView()
 	private let title = NSTextField(labelWithString: "")
 	private let subtitle = NSTextField(labelWithString: "")
 
 	init() {
 		super.init(frame: .zero)
-		setupVisualEffect()
 		identifier = Self.identifier
 		title.lineBreakMode = .byTruncatingTail
 		subtitle.lineBreakMode = .byTruncatingMiddle
@@ -233,18 +234,32 @@ private final class EntryCell: NSTableCellView {
 			icon.contentTintColor = nil
 		}
 	}
-	private func setupVisualEffect() {
-		visualEffectView.material = .headerView
-		visualEffectView.blendingMode = .withinWindow
-		visualEffectView.state = .followsWindowActiveState
-		visualEffectView.translatesAutoresizingMaskIntoConstraints = false
-		addSubview(visualEffectView, positioned: .below, relativeTo: nil)
-		NSLayoutConstraint.activate([
-			visualEffectView.leadingAnchor.constraint(equalTo: leadingAnchor),
-			visualEffectView.trailingAnchor.constraint(equalTo: trailingAnchor),
-			visualEffectView.topAnchor.constraint(equalTo: topAnchor),
-			visualEffectView.bottomAnchor.constraint(equalTo: bottomAnchor)
-		])
+}
+
+/**
+Row of a group header. Source-list rows are transparent, so a header floating over the list would show
+the rows scrolling beneath it; while floating it gets the header material, as in Finder and Xcode.
+*/
+private final class GroupRowView: NSTableRowView {
+	private let backdrop = NSVisualEffectView()
+
+	init() {
+		super.init(frame: .zero)
+		backdrop.material = .headerView
+		backdrop.blendingMode = .withinWindow
+		backdrop.isHidden = true
+		addSubview(backdrop, positioned: .below, relativeTo: nil)
+	}
+
+	required init?(coder: NSCoder) { fatalError() }
+
+	override var isFloating: Bool {
+		didSet { backdrop.isHidden = !isFloating }
+	}
+
+	override func layout() {
+		super.layout()
+		backdrop.frame = bounds
 	}
 }
 
@@ -286,11 +301,6 @@ private final class GroupCell: NSTableCellView {
 
 	required init?(coder: NSCoder) { fatalError() }
 
-	override var wantsUpdateLayer: Bool { true }
-	override func updateLayer() {
-		super.updateLayer()
-		layer?.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.85).cgColor
-	}
 	@MainActor
 	func configure(_ section: EntrySection, isCollapsed: Bool) {
 		chevron.image = NSImage(systemSymbolName: isCollapsed ? "chevron.right" : "chevron.down", accessibilityDescription: nil)
