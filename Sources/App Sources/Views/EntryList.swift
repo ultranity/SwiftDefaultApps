@@ -26,7 +26,8 @@ struct EntryList: NSViewRepresentable {
 		outline.addTableColumn(column)
 		outline.outlineTableColumn = column
 		outline.headerView = nil
-		outline.style = .sourceList
+		// Plain: the source-list and inset styles pad every group row with extra space above it.
+		outline.style = .plain
 		outline.floatsGroupRows = true
 		outline.indentationPerLevel = 0
 		outline.usesAutomaticRowHeights = false
@@ -161,7 +162,7 @@ struct EntryList: NSViewRepresentable {
 		}
 
 		func outlineView(_ outlineView: NSOutlineView, rowViewForItem item: Any) -> NSTableRowView? {
-			item is Group ? GroupRowView() : nil
+			item is Group ? GroupRowView(scrollView: outlineView.enclosingScrollView) : EntryRowView()
 		}
 
 		func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
@@ -236,33 +237,6 @@ private final class EntryCell: NSTableCellView {
 	}
 }
 
-/**
-Row of a group header. Source-list rows are transparent, so a header floating over the list would show
-the rows scrolling beneath it; while floating it gets the header material, as in Finder and Xcode.
-*/
-private final class GroupRowView: NSTableRowView {
-	private let backdrop = NSVisualEffectView()
-
-	init() {
-		super.init(frame: .zero)
-		backdrop.material = .headerView
-		backdrop.blendingMode = .withinWindow
-		backdrop.isHidden = true
-		addSubview(backdrop, positioned: .below, relativeTo: nil)
-	}
-
-	required init?(coder: NSCoder) { fatalError() }
-
-	override var isFloating: Bool {
-		didSet { backdrop.isHidden = !isFloating }
-	}
-
-	override func layout() {
-		super.layout()
-		backdrop.frame = bounds
-	}
-}
-
 /** Group header: disclosure chevron, optional app icon, title and row count. */
 private final class GroupCell: NSTableCellView {
 	static let identifier = NSUserInterfaceItemIdentifier("GroupCell")
@@ -308,5 +282,63 @@ private final class GroupCell: NSTableCellView {
 		icon.isHidden = section.app == nil
 		title.stringValue = section.title ?? ""
 		count.stringValue = "\(section.entries.count)"
+	}
+}
+
+/**
+Row of a group header. It is painted in the list's own background, so it is invisible at rest and hides the
+rows scrolling beneath it while floating; a separator appears only while rows actually pass beneath it.
+*/
+private final class GroupRowView: NSTableRowView {
+	private let separator = NSBox()
+	/** Held directly: while floating, the row lives in a container outside the scroll view's hierarchy. */
+	private weak var scrollView: NSScrollView?
+	private var scrollObserver: NSObjectProtocol?
+
+	init(scrollView: NSScrollView?) {
+		self.scrollView = scrollView
+		super.init(frame: .zero)
+		separator.boxType = .separator
+		separator.translatesAutoresizingMaskIntoConstraints = false
+		addSubview(separator)
+		NSLayoutConstraint.activate([
+			separator.leadingAnchor.constraint(equalTo: leadingAnchor),
+			separator.trailingAnchor.constraint(equalTo: trailingAnchor),
+			separator.bottomAnchor.constraint(equalTo: bottomAnchor),
+		])
+		scrollObserver = scrollView.map { scroll in
+			NotificationCenter.default.addObserver(forName: NSView.boundsDidChangeNotification, object: scroll.contentView, queue: .main) { [weak self] _ in
+				MainActor.assumeIsolated { self?.updateSeparator() }
+			}
+		}
+		updateSeparator()
+	}
+
+	required init?(coder: NSCoder) { fatalError() }
+
+	deinit { scrollObserver.map(NotificationCenter.default.removeObserver) }
+
+	override var isFloating: Bool {
+		didSet { updateSeparator() }
+	}
+
+	/** A line only while rows actually pass beneath the header; at rest the first header floats too. */
+	private func updateSeparator() {
+		separator.isHidden = !(isFloating && (scrollView?.contentView.bounds.minY ?? 0) > 0)
+	}
+
+	override func drawBackground(in dirtyRect: NSRect) {
+		backgroundColor.setFill()
+		dirtyRect.fill()
+	}
+
+	override func drawSeparator(in dirtyRect: NSRect) {}
+}
+
+/** Row of an entry: the plain style selects edge to edge, so draw the rounded, inset selection of a source list. */
+private final class EntryRowView: NSTableRowView {
+	override func drawSelection(in dirtyRect: NSRect) {
+		(isEmphasized ? NSColor.selectedContentBackgroundColor : .unemphasizedSelectedContentBackgroundColor).setFill()
+		NSBezierPath(roundedRect: bounds.insetBy(dx: 10, dy: 1), xRadius: 6, yRadius: 6).fill()
 	}
 }

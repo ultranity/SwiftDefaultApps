@@ -399,22 +399,18 @@ enum Icons {
 	private static let cache = NSCache<NSString, NSImage>()
 
 	static func app(_ path: String?) -> NSImage {
-		cached("app:\(path ?? "")") {
-			path.map { NSWorkspace.shared.icon(forFile: $0) } ?? NSWorkspace.shared.icon(for: .application)
-		}
+		cached("app:\(path ?? "")") { loadApp(path) }
 	}
 
 	/**
-	Menus draw an image at its point size, and `icon(forFile:)` is 32pt. Wrapping it in a drawing handler
-	gives a 16pt image that redraws the original for each backing scale, so it stays sharp on Retina.
+	Menus draw an image at its point size, and `icon(forFile:)` starts at 32pt. Setting the size of a freshly
+	loaded icon to 16pt makes the menu pick the icon's own 16pt artwork for each backing scale, as Finder does.
 	*/
 	static func menuApp(_ path: String?) -> NSImage {
 		cached("menu:\(path ?? "")") {
-			let icon = app(path)
-			return NSImage(size: NSSize(width: 16, height: 16), flipped: false) { rect in
-				icon.draw(in: rect)
-				return true
-			}
+			let icon = loadApp(path)
+			icon.size = NSSize(width: 16, height: 16)
+			return icon
 		}
 	}
 
@@ -422,6 +418,11 @@ enum Icons {
 		cached("uti:\(identifier)") {
 			NSWorkspace.shared.icon(for: UTType(identifier) ?? .data)
 		}
+	}
+
+	/** Every call returns a new image, so resizing one never affects another cache entry. */
+	private static func loadApp(_ path: String?) -> NSImage {
+		path.map { NSWorkspace.shared.icon(forFile: $0) } ?? NSWorkspace.shared.icon(for: .application)
 	}
 
 	private static func cached(_ key: String, make: () -> NSImage) -> NSImage {
